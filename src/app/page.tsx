@@ -28,6 +28,9 @@ export default async function TodayPage() {
         cycleIndex={nextFeed.cycle_index}
         supplement={nextFeed.supplement}
         lastFedAt={nextFeed.last?.fed_at ?? null}
+        lastCycleIndex={nextFeed.last?.cycle_index ?? null}
+        lastSupplement={nextFeed.last?.supplement ?? null}
+        fedToday={nextFeed.fedToday}
       />
 
       <EnvironmentStatus readings={envLatest} />

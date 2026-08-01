@@ -24,6 +24,9 @@ export default async function CalendarPage({ searchParams }: Props) {
         cycleIndex={nextFeed.cycle_index}
         supplement={nextFeed.supplement}
         lastFedAt={nextFeed.last?.fed_at ?? null}
+        lastCycleIndex={nextFeed.last?.cycle_index ?? null}
+        lastSupplement={nextFeed.last?.supplement ?? null}
+        fedToday={nextFeed.fedToday}
       />
       <CalendarGrid year={year} month={month} feeds={feeds} />
     </main>

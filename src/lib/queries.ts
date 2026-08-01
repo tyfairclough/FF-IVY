@@ -1,6 +1,7 @@
 import {
   type CycleIndex,
   type FeedLog,
+  isFedToday,
   nextCycleIndex,
   supplementForIndex,
 } from "@/lib/feeding";
@@ -35,16 +36,21 @@ export async function getLatestFeed(): Promise<FeedLog | null> {
 export async function getNextFeed() {
   const latest = await getLatestFeed();
   const cycle_index = nextCycleIndex(latest?.cycle_index);
+  const fedToday = isFedToday(latest?.fed_at);
   return {
     cycle_index,
     supplement: supplementForIndex(cycle_index),
     last: latest,
+    fedToday,
   };
 }
 
 export async function logFeed() {
-  const sql = getSql();
   const next = await getNextFeed();
+  if (next.fedToday) {
+    throw new Error("Already fed today — next feed available tomorrow");
+  }
+  const sql = getSql();
   const rows = await sql`
     INSERT INTO feed_logs (cycle_index, supplement)
     VALUES (${next.cycle_index}, ${next.supplement})

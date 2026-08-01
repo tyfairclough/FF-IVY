@@ -38,3 +38,16 @@ export function shortSupplement(name: string): string {
   if (name === "ReVitaliseD3") return "D3";
   return name;
 }
+
+/** Calendar day in Europe/London (YYYY-MM-DD), used for the one-feed-per-day rule. */
+export function calendarDayKey(date: Date | string = new Date()): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+}
+
+export function isFedToday(fedAt: string | null | undefined): boolean {
+  if (!fedAt) return false;
+  const fedDay = calendarDayKey(fedAt);
+  return fedDay !== "" && fedDay === calendarDayKey();
+}
