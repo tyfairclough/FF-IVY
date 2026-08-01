@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { EnvLatestRow } from "@/lib/db";
 import {
   formatDisplayValue,
@@ -13,6 +16,7 @@ type Props = {
 };
 
 export function EnvironmentStatus({ readings }: Props) {
+  const [now] = useState(Date.now);
   const byPin = new Map(readings.map((row) => [row.pin, row]));
   const primary = STATUS_PINS.filter((pin) => PIN_META[pin].kind === "primary");
   const secondary = STATUS_PINS.filter(
@@ -26,7 +30,7 @@ export function EnvironmentStatus({ readings }: Props) {
     .sort((a, b) => b - a)[0];
 
   const stale =
-    newestPrimary !== undefined && Date.now() - newestPrimary > STALE_AFTER_MS;
+    newestPrimary !== undefined && now - newestPrimary > STALE_AFTER_MS;
 
   const deviceName =
     readings.find((row) => row.device_name)?.device_name ?? "Microclimate";

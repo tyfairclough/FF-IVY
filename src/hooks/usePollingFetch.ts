@@ -5,13 +5,18 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 const POLL_INTERVAL_MS = 60_000;
 
 export function usePollingFetch<T>(url: string, initialData: T): T {
-  const [data, setData] = useState(initialData);
+  const [polledData, setPolledData] = useState<T | null>(null);
+  const [baseline, setBaseline] = useState(initialData);
   const requestIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    setData(initialData);
-  }, [initialData]);
+  // Reset to the latest server snapshot when navigation/props change.
+  if (initialData !== baseline) {
+    setBaseline(initialData);
+    setPolledData(null);
+  }
+
+  const data = polledData ?? initialData;
 
   const fetchSnapshot = useEffectEvent(async () => {
     abortRef.current?.abort();
@@ -27,7 +32,7 @@ export function usePollingFetch<T>(url: string, initialData: T): T {
       if (!res.ok) return;
       const json = (await res.json()) as T;
       if (requestId !== requestIdRef.current) return;
-      setData(json);
+      setPolledData(json);
     } catch {
       // Keep last good snapshot on network/abort errors.
     }

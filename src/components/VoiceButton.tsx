@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import {
   completeFeedAction,
   completeTaskAction,
@@ -8,6 +8,8 @@ import {
 } from "@/lib/actions";
 import { useToast } from "@/components/ToastProvider";
 import { parseVoiceCommand, speechSupported } from "@/lib/voice";
+
+const emptySubscribe = () => () => {};
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -29,14 +31,14 @@ declare global {
 
 export function VoiceButton() {
   const { pushToast } = useToast();
-  const [supported, setSupported] = useState(false);
+  const supported = useSyncExternalStore(
+    emptySubscribe,
+    speechSupported,
+    () => false,
+  );
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const handlingRef = useRef(false);
-
-  useEffect(() => {
-    setSupported(speechSupported());
-  }, []);
 
   async function runCommand(transcript: string) {
     if (handlingRef.current) return;
