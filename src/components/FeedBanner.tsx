@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { completeFeedAction } from "@/lib/actions";
 import { useToast } from "@/components/ToastProvider";
 
@@ -25,12 +25,15 @@ export function FeedBanner({
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [fedTodayOptimistic, setFedTodayOptimistic] = useState(false);
-  const fedToday = fedTodayProp || fedTodayOptimistic;
+  const [seenFedTodayProp, setSeenFedTodayProp] = useState(fedTodayProp);
 
-  // Clear optimistic lock after server refresh (including undo).
-  useEffect(() => {
-    if (!fedTodayProp) setFedTodayOptimistic(false);
-  }, [fedTodayProp]);
+  // Reset optimistic lock when server props refresh (including undo).
+  if (seenFedTodayProp !== fedTodayProp) {
+    setSeenFedTodayProp(fedTodayProp);
+    setFedTodayOptimistic(false);
+  }
+
+  const fedToday = fedTodayProp || fedTodayOptimistic;
 
   function onFed() {
     if (busy || pending || fedToday) return;
