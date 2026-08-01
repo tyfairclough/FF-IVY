@@ -1,15 +1,25 @@
+import { EnvironmentCharts } from "@/components/EnvironmentCharts";
+import { EnvironmentStatus } from "@/components/EnvironmentStatus";
 import { FeedBanner } from "@/components/FeedBanner";
 import { InsectSummary } from "@/components/InsectSummary";
 import { TaskCard } from "@/components/TaskCard";
-import { getInsects, getNextFeed, getTaskStatuses } from "@/lib/queries";
+import {
+  getEnvHistory,
+  getEnvLatest,
+  getInsects,
+  getNextFeed,
+  getTaskStatuses,
+} from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function TodayPage() {
-  const [nextFeed, tasks, insects] = await Promise.all([
+  const [nextFeed, tasks, insects, envLatest, envHistory] = await Promise.all([
     getNextFeed(),
     getTaskStatuses(),
     getInsects(),
+    getEnvLatest(),
+    getEnvHistory(24),
   ]);
 
   return (
@@ -19,6 +29,9 @@ export default async function TodayPage() {
         supplement={nextFeed.supplement}
         lastFedAt={nextFeed.last?.fed_at ?? null}
       />
+
+      <EnvironmentStatus readings={envLatest} />
+      <EnvironmentCharts history={envHistory} />
 
       <section>
         <h2 className="mb-3 text-2xl font-bold text-white">Care tasks</h2>

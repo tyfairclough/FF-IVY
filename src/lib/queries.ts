@@ -4,7 +4,14 @@ import {
   nextCycleIndex,
   supplementForIndex,
 } from "@/lib/feeding";
-import { getSql, type InsectKey, type InsectLogKind, type InsectRow } from "@/lib/db";
+import {
+  getSql,
+  type EnvHistoryPoint,
+  type EnvLatestRow,
+  type InsectKey,
+  type InsectLogKind,
+  type InsectRow,
+} from "@/lib/db";
 import { CARE_TASKS, type TaskKey } from "@/lib/tasks";
 
 export async function getLatestFeed(): Promise<FeedLog | null> {
@@ -207,4 +214,98 @@ export async function logInsect(key: InsectKey, kind: InsectLogKind) {
 export async function undoInsectLog(id: number) {
   const sql = getSql();
   await sql`DELETE FROM insect_logs WHERE id = ${id}`;
+}
+
+export async function upsertEnvReading(input: {
+  pin: string;
+  stream_name: string;
+  value_raw: string;
+  value_num: number | null;
+  recorded_at: Date;
+  device_id: string | null;
+  device_name: string | null;
+  writeHistory: boolean;
+}) {
+  const sql = getSql();
+  await sql`
+    INSERT INTO env_latest (
+      pin, stream_name, value_raw, value_num, recorded_at, device_id, device_name
+    )
+    VALUES (
+      ${input.pin},
+      ${input.stream_name},
+      ${input.value_raw},
+      ${input.value_num},
+      ${input.recorded_at.toISOString()},
+      ${input.device_id},
+      ${input.device_name}
+    )
+    ON CONFLICT (pin) DO UPDATE SET
+      stream_name = EXCLUDED.stream_name,
+      value_raw = EXCLUDED.value_raw,
+      value_num = EXCLUDED.value_num,
+      recorded_at = EXCLUDED.recorded_at,
+      device_id = EXCLUDED.device_id,
+      device_name = EXCLUDED.device_name
+  `;
+
+  if (input.writeHistory && input.value_num !== null) {
+    const minuteBucket = new Date(input.recorded_at);
+    minuteBucket.setUTCSeconds(0, 0);
+    await sql`
+      INSERT INTO env_history (pin, recorded_at, value_num, minute_bucket)
+      VALUES (
+        ${input.pin},
+        ${input.recorded_at.toISOString()},
+        ${input.value_num},
+        ${minuteBucket.toISOString()}
+      )
+      ON CONFLICT (pin, minute_bucket) DO UPDATE SET
+        value_num = EXCLUDED.value_num,
+        recorded_at = EXCLUDED.recorded_at
+    `;
+    await sql`
+      DELETE FROM env_history
+      WHERE pin = ${input.pin}
+        AND recorded_at < NOW() - INTERVAL '7 days'
+    `;
+  }
+}
+
+export async function getEnvLatest(): Promise<EnvLatestRow[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT pin, stream_name, value_raw, value_num, recorded_at, device_id, device_name
+    FROM env_latest
+    ORDER BY pin ASC
+  `;
+  return rows.map((row) => ({
+    pin: String(row.pin),
+    stream_name: String(row.stream_name),
+    value_raw: String(row.value_raw),
+    value_num:
+      row.value_num === null || row.value_num === undefined
+        ? null
+        : Number(row.value_num),
+    recorded_at: String(row.recorded_at),
+    device_id: row.device_id ? String(row.device_id) : null,
+    device_name: row.device_name ? String(row.device_name) : null,
+  }));
+}
+
+export async function getEnvHistory(hours = 24): Promise<EnvHistoryPoint[]> {
+  const sql = getSql();
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  const rows = await sql`
+    SELECT pin, recorded_at, value_num
+    FROM env_history
+    WHERE recorded_at >= ${since}
+      AND pin IN ('v0', 'v1', 'v2')
+    ORDER BY recorded_at ASC
+  `;
+  return rows.map((row) => ({
+    pin: String(row.pin),
+    recorded_at: String(row.recorded_at),
+    value_num: Number(row.value_num),
+  }));
 }

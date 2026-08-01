@@ -25,3 +25,19 @@ export type TaskLatest = {
   task_key: string;
   completed_at: string | null;
 };
+
+export type EnvLatestRow = {
+  pin: string;
+  stream_name: string;
+  value_raw: string;
+  value_num: number | null;
+  recorded_at: string;
+  device_id: string | null;
+  device_name: string | null;
+};
+
+export type EnvHistoryPoint = {
+  pin: string;
+  recorded_at: string;
+  value_num: number;
+};

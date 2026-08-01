@@ -1,12 +1,13 @@
 # FF-IVY
 
-Tablet-first chameleon care diary: Arcadia Insectivore 8-feed cycle, care timers, and feeder-insect stock tracking.
+Tablet-first chameleon care diary: Arcadia Insectivore 8-feed cycle, care timers, feeder-insect stock tracking, and Microclimate environment status.
 
 ## Stack
 
 - Next.js (App Router) PWA
 - Neon Postgres
 - Shared-password login
+- Blynk webhooks from Microclimate Evo Connected Pro
 - Deploy target: Vercel
 
 ## Local setup
@@ -15,7 +16,8 @@ Tablet-first chameleon care diary: Arcadia Insectivore 8-feed cycle, care timers
    - `DATABASE_URL`
    - `APP_PASSWORD`
    - `SESSION_SECRET`
-2. Apply the schema in [`db/migrations/001_init.sql`](db/migrations/001_init.sql) to your Neon database.
+   - `MICROCLIMATE_WEBHOOK_SECRET`
+2. Apply the schemas in [`db/migrations/`](db/migrations/) to your Neon database.
 3. Install and run:
 
 ```bash
@@ -31,3 +33,31 @@ Open [http://localhost:3000](http://localhost:3000), sign in with `APP_PASSWORD`
 - Care tasks with days-since colour nudges (red at 7+ days)
 - Insect check-in/out; gut-load and clean timers for crickets, locusts, dubia
 - Touch buttons and Chrome Web Speech voice commands with undo toasts
+- Live Microclimate Yellow/Red temperature and Blue humidity status + 24h charts
+
+## Blynk / Microclimate webhook
+
+Point your Blynk webhook at:
+
+`https://ff-ivy.vercel.app/api/microclimate`
+
+- Method: **POST**
+- HTTP header: `X-Webhook-Secret` = your `MICROCLIMATE_WEBHOOK_SECRET`
+- Custom JSON body (no auth token):
+
+```json
+{
+  "device_id": "{device_id}",
+  "device_name": "{device_name}",
+  "device_productName": "{device_productName}",
+  "device_pin": "{device_pin}",
+  "device_dataStreamId": "{device_dataStreamId}",
+  "device_dataStreamName": "{device_dataStreamName}",
+  "device_dataStreamAlias": "{device_dataStreamAlias}",
+  "device_pinValue": "{device_pinValue}",
+  "timestamp_unix": "{timestamp_unix}",
+  "timestamp_iso8601": "{timestamp_iso8601}"
+}
+```
+
+Datastream can stay **Any**; the API stores status for known pins and graphs `v0` / `v1` / `v2` only.
