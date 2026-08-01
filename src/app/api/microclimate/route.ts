@@ -173,6 +173,10 @@ export async function POST(request: Request) {
       {
         error: "Unauthorized",
         debugCode: !provided ? "missing_secret" : "secret_mismatch",
+        queryKeys: [...new URL(request.url).searchParams.keys()],
+        hint: !provided
+          ? "Add a Query parameter Key=secret with your MICROCLIMATE_WEBHOOK_SECRET value (Microclimate strips ?secret= from the URL field)."
+          : "Secret was sent but did not match. Check the secret value.",
       },
       { status: 401 },
     );
