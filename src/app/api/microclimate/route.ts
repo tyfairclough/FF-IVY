@@ -45,6 +45,21 @@ function resolveRecordedAt(body: WebhookBody): Date {
   return new Date();
 }
 
+function extractBasicAuthPassword(request: Request): string | null {
+  const auth = request.headers.get("authorization");
+  if (!auth) return null;
+  const match = /^Basic\s+(.+)$/i.exec(auth.trim());
+  if (!match) return null;
+  try {
+    const decoded = atob(match[1]);
+    const colon = decoded.indexOf(":");
+    if (colon < 0) return decoded;
+    return decoded.slice(colon + 1);
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   const expected = process.env.MICROCLIMATE_WEBHOOK_SECRET;
   // #region agent log
@@ -55,6 +70,8 @@ export async function POST(request: Request) {
     request.headers.get("webhook-secret") ??
     null;
   const urlSecret = new URL(request.url).searchParams.get("secret");
+  const basicPassword = extractBasicAuthPassword(request);
+  const hasAuthorization = headerNames.some((n) => n.toLowerCase() === "authorization");
   fetch("http://127.0.0.1:7926/ingest/86f94468-743f-4211-ad1e-a630cc67636d", {
     method: "POST",
     headers: {
@@ -63,21 +80,21 @@ export async function POST(request: Request) {
     },
     body: JSON.stringify({
       sessionId: "ca9006",
-      runId: "pre-fix",
-      hypothesisId: "A-B-C-E",
+      runId: "post-fix",
+      hypothesisId: "A-B-Basic",
       location: "api/microclimate/route.ts:POST",
       message: "webhook auth probe",
       data: {
         hasExpected: Boolean(expected),
         expectedLen: expected?.length ?? 0,
-        expectedTrimLen: expected?.trim().length ?? 0,
         providedIsNull: providedRaw === null,
         providedLen: providedRaw?.length ?? 0,
-        providedTrimLen: providedRaw?.trim().length ?? 0,
-        providedAltLen: providedAlt?.length ?? 0,
         hasUrlSecret: Boolean(urlSecret),
         urlSecretLen: urlSecret?.length ?? 0,
-        headerNames,
+        hasBasicPassword: Boolean(basicPassword),
+        basicPasswordLen: basicPassword?.length ?? 0,
+        hasAuthorization,
+        queryKeys: [...new URL(request.url).searchParams.keys()],
         headerNamesWithSecret: headerNames.filter((n) =>
           /secret|auth|webhook/i.test(n),
         ),
@@ -88,13 +105,14 @@ export async function POST(request: Request) {
   console.log(
     "[ff-ivy-debug]",
     JSON.stringify({
-      hypothesisId: "A-B-C-E",
+      hypothesisId: "A-B-Basic",
       hasExpected: Boolean(expected),
       expectedLen: expected?.length ?? 0,
       providedIsNull: providedRaw === null,
-      providedLen: providedRaw?.length ?? 0,
       hasUrlSecret: Boolean(urlSecret),
-      urlSecretLen: urlSecret?.length ?? 0,
+      hasBasicPassword: Boolean(basicPassword),
+      basicPasswordLen: basicPassword?.length ?? 0,
+      hasAuthorization,
       queryKeys: [...new URL(request.url).searchParams.keys()],
       headerNamesWithSecret: headerNames.filter((n) =>
         /secret|auth|webhook/i.test(n),
@@ -112,8 +130,23 @@ export async function POST(request: Request) {
     );
   }
 
-  // Prefer header; fall back to ?secret= for Microclimate UIs that cannot set headers.
-  const provided = (providedRaw || providedAlt || urlSecret || "").trim();
+  // Header, Basic Auth password, or ?secret= (Microclimate white-label UIs vary).
+  const authSource = providedRaw
+    ? "header"
+    : providedAlt
+      ? "alt-header"
+      : basicPassword
+        ? "basic"
+        : urlSecret
+          ? "query"
+          : "none";
+  const provided = (
+    providedRaw ||
+    providedAlt ||
+    basicPassword ||
+    urlSecret ||
+    ""
+  ).trim();
   const expectedTrim = expected.trim();
   const matchedTrim =
     provided.length === expectedTrim.length &&
@@ -128,19 +161,13 @@ export async function POST(request: Request) {
     body: JSON.stringify({
       sessionId: "ca9006",
       runId: "post-fix",
-      hypothesisId: "A-B",
+      hypothesisId: "A-B-Basic",
       location: "api/microclimate/route.ts:authResult",
       message: "webhook auth compare",
       data: {
         matchedTrim,
         lengthEqual: provided.length === expectedTrim.length,
-        authSource: providedRaw
-          ? "header"
-          : providedAlt
-            ? "alt-header"
-            : urlSecret
-              ? "query"
-              : "none",
+        authSource,
         debugCode: !provided
           ? "missing_secret"
           : matchedTrim
@@ -153,13 +180,9 @@ export async function POST(request: Request) {
   console.log(
     "[ff-ivy-debug]",
     JSON.stringify({
-      hypothesisId: "A-B",
+      hypothesisId: "A-B-Basic",
       matchedTrim,
-      authSource: providedRaw
-        ? "header"
-        : urlSecret
-          ? "query"
-          : "none",
+      authSource,
       debugCode: !provided
         ? "missing_secret"
         : matchedTrim
@@ -174,8 +197,9 @@ export async function POST(request: Request) {
         error: "Unauthorized",
         debugCode: !provided ? "missing_secret" : "secret_mismatch",
         queryKeys: [...new URL(request.url).searchParams.keys()],
+        hasAuthorization,
         hint: !provided
-          ? "Add a Query parameter Key=secret with your MICROCLIMATE_WEBHOOK_SECRET value (Microclimate strips ?secret= from the URL field)."
+          ? "Use Basic Auth with Password = your webhook secret (Username can be ff-ivy), or HTTP Header X-Webhook-Secret, or Query param secret."
           : "Secret was sent but did not match. Check the secret value.",
       },
       { status: 401 },
