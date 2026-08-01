@@ -18,6 +18,9 @@ type WebhookBody = {
   device_pinValue?: string | number;
   timestamp_iso8601?: string;
   timestamp_unix?: string | number;
+  /** Static shared secret — Microclimate often cannot send headers/query auth */
+  webhook_secret?: string;
+  secret?: string;
 };
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -62,64 +65,6 @@ function extractBasicAuthPassword(request: Request): string | null {
 
 export async function POST(request: Request) {
   const expected = process.env.MICROCLIMATE_WEBHOOK_SECRET;
-  // #region agent log
-  const headerNames = [...request.headers.keys()];
-  const providedRaw = request.headers.get("x-webhook-secret");
-  const providedAlt =
-    request.headers.get("X-Webhook-Secret") ??
-    request.headers.get("webhook-secret") ??
-    null;
-  const urlSecret = new URL(request.url).searchParams.get("secret");
-  const basicPassword = extractBasicAuthPassword(request);
-  const hasAuthorization = headerNames.some((n) => n.toLowerCase() === "authorization");
-  fetch("http://127.0.0.1:7926/ingest/86f94468-743f-4211-ad1e-a630cc67636d", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "ca9006",
-    },
-    body: JSON.stringify({
-      sessionId: "ca9006",
-      runId: "post-fix",
-      hypothesisId: "A-B-Basic",
-      location: "api/microclimate/route.ts:POST",
-      message: "webhook auth probe",
-      data: {
-        hasExpected: Boolean(expected),
-        expectedLen: expected?.length ?? 0,
-        providedIsNull: providedRaw === null,
-        providedLen: providedRaw?.length ?? 0,
-        hasUrlSecret: Boolean(urlSecret),
-        urlSecretLen: urlSecret?.length ?? 0,
-        hasBasicPassword: Boolean(basicPassword),
-        basicPasswordLen: basicPassword?.length ?? 0,
-        hasAuthorization,
-        queryKeys: [...new URL(request.url).searchParams.keys()],
-        headerNamesWithSecret: headerNames.filter((n) =>
-          /secret|auth|webhook/i.test(n),
-        ),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  console.log(
-    "[ff-ivy-debug]",
-    JSON.stringify({
-      hypothesisId: "A-B-Basic",
-      hasExpected: Boolean(expected),
-      expectedLen: expected?.length ?? 0,
-      providedIsNull: providedRaw === null,
-      hasUrlSecret: Boolean(urlSecret),
-      hasBasicPassword: Boolean(basicPassword),
-      basicPasswordLen: basicPassword?.length ?? 0,
-      hasAuthorization,
-      queryKeys: [...new URL(request.url).searchParams.keys()],
-      headerNamesWithSecret: headerNames.filter((n) =>
-        /secret|auth|webhook/i.test(n),
-      ),
-    }),
-  );
-  // #endregion
   if (!expected) {
     return NextResponse.json(
       {
@@ -130,7 +75,31 @@ export async function POST(request: Request) {
     );
   }
 
-  // Header, Basic Auth password, or ?secret= (Microclimate white-label UIs vary).
+  let body: WebhookBody;
+  try {
+    body = (await request.json()) as WebhookBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const headerNames = [...request.headers.keys()];
+  const providedRaw = request.headers.get("x-webhook-secret");
+  const providedAlt =
+    request.headers.get("X-Webhook-Secret") ??
+    request.headers.get("webhook-secret") ??
+    null;
+  const urlSecret = new URL(request.url).searchParams.get("secret");
+  const basicPassword = extractBasicAuthPassword(request);
+  const bodySecret =
+    typeof body.webhook_secret === "string"
+      ? body.webhook_secret
+      : typeof body.secret === "string"
+        ? body.secret
+        : null;
+  const hasAuthorization = headerNames.some(
+    (n) => n.toLowerCase() === "authorization",
+  );
+
   const authSource = providedRaw
     ? "header"
     : providedAlt
@@ -139,18 +108,22 @@ export async function POST(request: Request) {
         ? "basic"
         : urlSecret
           ? "query"
-          : "none";
+          : bodySecret
+            ? "body"
+            : "none";
   const provided = (
     providedRaw ||
     providedAlt ||
     basicPassword ||
     urlSecret ||
+    bodySecret ||
     ""
   ).trim();
   const expectedTrim = expected.trim();
   const matchedTrim =
     provided.length === expectedTrim.length &&
     timingSafeEqual(provided, expectedTrim);
+
   // #region agent log
   fetch("http://127.0.0.1:7926/ingest/86f94468-743f-4211-ad1e-a630cc67636d", {
     method: "POST",
@@ -161,13 +134,15 @@ export async function POST(request: Request) {
     body: JSON.stringify({
       sessionId: "ca9006",
       runId: "post-fix",
-      hypothesisId: "A-B-Basic",
+      hypothesisId: "BodySecret",
       location: "api/microclimate/route.ts:authResult",
       message: "webhook auth compare",
       data: {
         matchedTrim,
-        lengthEqual: provided.length === expectedTrim.length,
         authSource,
+        hasBodySecret: Boolean(bodySecret),
+        hasAuthorization,
+        queryKeys: [...new URL(request.url).searchParams.keys()],
         debugCode: !provided
           ? "missing_secret"
           : matchedTrim
@@ -180,9 +155,12 @@ export async function POST(request: Request) {
   console.log(
     "[ff-ivy-debug]",
     JSON.stringify({
-      hypothesisId: "A-B-Basic",
+      hypothesisId: "BodySecret",
       matchedTrim,
       authSource,
+      hasBodySecret: Boolean(bodySecret),
+      hasAuthorization,
+      queryKeys: [...new URL(request.url).searchParams.keys()],
       debugCode: !provided
         ? "missing_secret"
         : matchedTrim
@@ -191,6 +169,7 @@ export async function POST(request: Request) {
     }),
   );
   // #endregion
+
   if (!matchedTrim) {
     return NextResponse.json(
       {
@@ -198,19 +177,13 @@ export async function POST(request: Request) {
         debugCode: !provided ? "missing_secret" : "secret_mismatch",
         queryKeys: [...new URL(request.url).searchParams.keys()],
         hasAuthorization,
+        hasBodySecret: Boolean(bodySecret),
         hint: !provided
-          ? "Use Basic Auth with Password = your webhook secret (Username can be ff-ivy), or HTTP Header X-Webhook-Secret, or Query param secret."
+          ? 'Put "webhook_secret":"YOUR_SECRET" as a plain string inside the Custom JSON body (Microclimate is not sending headers/query auth).'
           : "Secret was sent but did not match. Check the secret value.",
       },
       { status: 401 },
     );
-  }
-
-  let body: WebhookBody;
-  try {
-    body = (await request.json()) as WebhookBody;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const pin = normalizePin(String(body.device_pin ?? ""));
@@ -218,7 +191,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing device_pin" }, { status: 400 });
   }
 
-  // Ignore noisy non-sensor streams (e.g. Time on v27)
   if (!isStatusPin(pin)) {
     return NextResponse.json({ ok: true, ignored: true });
   }
@@ -226,9 +198,7 @@ export async function POST(request: Request) {
   const valueRaw = String(body.device_pinValue ?? "").trim();
   const streamName =
     String(
-      body.device_dataStreamName ||
-        body.device_dataStreamAlias ||
-        pin,
+      body.device_dataStreamName || body.device_dataStreamAlias || pin,
     ).trim() || pin;
   const valueNum = parseNumericValue(valueRaw);
   const recordedAt = resolveRecordedAt(body);
@@ -244,5 +214,5 @@ export async function POST(request: Request) {
     writeHistory: isGraphPin(pin) && valueNum !== null,
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, authSource });
 }
