@@ -75,11 +75,56 @@ export async function POST(request: Request) {
     );
   }
 
+  const contentType = request.headers.get("content-type") ?? "";
+  const rawText = await request.text();
   let body: WebhookBody;
   try {
-    body = (await request.json()) as WebhookBody;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    if (!rawText.trim()) {
+      throw new Error("empty_body");
+    }
+    body = JSON.parse(rawText) as WebhookBody;
+  } catch (err) {
+    const preview = rawText.slice(0, 240);
+    // #region agent log
+    fetch("http://127.0.0.1:7926/ingest/86f94468-743f-4211-ad1e-a630cc67636d", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "ca9006",
+      },
+      body: JSON.stringify({
+        sessionId: "ca9006",
+        runId: "json-fail",
+        hypothesisId: "InvalidJson",
+        location: "api/microclimate/route.ts:parse",
+        message: "invalid json body",
+        data: {
+          contentType,
+          rawLen: rawText.length,
+          preview,
+          err: err instanceof Error ? err.message : "parse_failed",
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    console.log(
+      "[ff-ivy-debug]",
+      JSON.stringify({
+        hypothesisId: "InvalidJson",
+        contentType,
+        rawLen: rawText.length,
+        preview,
+        err: err instanceof Error ? err.message : "parse_failed",
+      }),
+    );
+    // #endregion
+    // Return 200 so Blynk/Microclimate does not count this toward webhook disable.
+    return NextResponse.json({
+      ok: true,
+      ignored: true,
+      reason: "invalid_json",
+      rawLen: rawText.length,
+    });
   }
 
   const headerNames = [...request.headers.keys()];
