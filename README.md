@@ -17,6 +17,7 @@ Tablet-first chameleon care diary: Arcadia Insectivore 8-feed cycle, care timers
    - `APP_PASSWORD`
    - `SESSION_SECRET`
    - `MICROCLIMATE_WEBHOOK_SECRET`
+   - `OPENAI_API_KEY` (natural-language voice)
 2. Apply the schemas in [`db/migrations/`](db/migrations/) to your Neon database.
 3. Install and run:
 
@@ -32,7 +33,7 @@ Open [http://localhost:3000](http://localhost:3000), sign in with `APP_PASSWORD`
 - Advance-on-log feeding cycle (feeds 1–8) with history-only calendar
 - Care tasks with days-since colour nudges (red at 7+ days)
 - Insect check-in/out; gut-load and clean timers for crickets, locusts, dubia
-- Touch buttons and Chrome Web Speech voice commands with undo toasts
+- Touch buttons and Chrome Web Speech + OpenAI natural-language voice (multi-intent logging, clarifications, “what does Ivy need”, last-done questions) with undo toasts
 - Live Microclimate Yellow/Red temperature and Blue humidity status + 24h charts
 
 ## Blynk / Microclimate webhook

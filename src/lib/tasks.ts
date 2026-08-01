@@ -2,38 +2,18 @@ export const CARE_TASKS = [
   {
     key: "habitat_clean",
     label: "Habitat clean",
-    voice: ["habitat clean", "cleaned habitat", "cleaned the habitat"],
   },
   {
     key: "rainmaker_water",
     label: "Rainmaker water",
-    voice: [
-      "rainmaker",
-      "cleaned rainmaker",
-      "changed rainmaker",
-      "rainmaker water",
-    ],
   },
   {
     key: "humidifier_water",
     label: "Humidifier water",
-    voice: [
-      "humidifier",
-      "changed humidifier",
-      "humidifier water",
-      "cleaned humidifier",
-    ],
   },
   {
     key: "env_check",
     label: "Environment check",
-    voice: [
-      "checked temps",
-      "checked temperatures",
-      "environment check",
-      "checked environment",
-      "temps look good",
-    ],
   },
 ] as const;
 
