@@ -37,12 +37,18 @@ Open [http://localhost:3000](http://localhost:3000), sign in with `APP_PASSWORD`
 
 ## Blynk / Microclimate webhook
 
-Point your Blynk webhook at:
+Point your Blynk/Microclimate webhook at:
 
-`https://ff-ivy.vercel.app/api/microclimate`
+`https://ff-ivy.vercel.app/api/microclimate?secret=YOUR_MICROCLIMATE_WEBHOOK_SECRET`
+
+(Microclimate often cannot send custom headers, so put the shared secret in the query string.)
+
+You can keep other query params (e.g. `ivy_enclosure=97498`):
+
+`https://ff-ivy.vercel.app/api/microclimate?secret=YOUR_SECRET&ivy_enclosure=97498`
 
 - Method: **POST**
-- HTTP header: `X-Webhook-Secret` = your `MICROCLIMATE_WEBHOOK_SECRET`
+- Optional header (if your UI supports it): `X-Webhook-Secret` = same secret
 - Custom JSON body (no auth token):
 
 ```json

@@ -45,6 +45,8 @@ next-env.d.ts
 
 # vercel
 .vercel
+.env.vercel.check
+webhook-secret.txt
 
 # env files
 .env
