@@ -315,3 +315,46 @@ export async function getEnvHistory(hours = 24): Promise<EnvHistoryPoint[]> {
     value_num: Number(row.value_num),
   }));
 }
+
+export type TodaySnapshot = {
+  nextFeed: Awaited<ReturnType<typeof getNextFeed>>;
+  tasks: Awaited<ReturnType<typeof getTaskStatuses>>;
+  insects: InsectRow[];
+  envLatest: EnvLatestRow[];
+  envHistory: EnvHistoryPoint[];
+};
+
+export async function getTodaySnapshot(): Promise<TodaySnapshot> {
+  const [nextFeed, tasks, insects, envLatest, envHistory] = await Promise.all([
+    getNextFeed(),
+    getTaskStatuses(),
+    getInsects(),
+    getEnvLatest(),
+    getEnvHistory(24),
+  ]);
+  return { nextFeed, tasks, insects, envLatest, envHistory };
+}
+
+export type InsectsSnapshot = {
+  insects: InsectRow[];
+};
+
+export async function getInsectsSnapshot(): Promise<InsectsSnapshot> {
+  return { insects: await getInsects() };
+}
+
+export type CalendarSnapshot = {
+  feeds: Awaited<ReturnType<typeof getFeedsForMonth>>;
+  nextFeed: Awaited<ReturnType<typeof getNextFeed>>;
+};
+
+export async function getCalendarSnapshot(
+  year: number,
+  month: number,
+): Promise<CalendarSnapshot> {
+  const [feeds, nextFeed] = await Promise.all([
+    getFeedsForMonth(year, month),
+    getNextFeed(),
+  ]);
+  return { feeds, nextFeed };
+}

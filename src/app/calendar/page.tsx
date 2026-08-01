@@ -1,6 +1,5 @@
-import { CalendarGrid } from "@/components/CalendarGrid";
-import { FeedBanner } from "@/components/FeedBanner";
-import { getFeedsForMonth, getNextFeed } from "@/lib/queries";
+import { CalendarView } from "@/components/CalendarView";
+import { getCalendarSnapshot } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -13,22 +12,7 @@ export default async function CalendarPage({ searchParams }: Props) {
   const now = new Date();
   const year = Number(params.year) || now.getFullYear();
   const month = Number(params.month) || now.getMonth() + 1;
-  const [feeds, nextFeed] = await Promise.all([
-    getFeedsForMonth(year, month),
-    getNextFeed(),
-  ]);
+  const data = await getCalendarSnapshot(year, month);
 
-  return (
-    <main className="space-y-6">
-      <FeedBanner
-        cycleIndex={nextFeed.cycle_index}
-        supplement={nextFeed.supplement}
-        lastFedAt={nextFeed.last?.fed_at ?? null}
-        lastCycleIndex={nextFeed.last?.cycle_index ?? null}
-        lastSupplement={nextFeed.last?.supplement ?? null}
-        fedToday={nextFeed.fedToday}
-      />
-      <CalendarGrid year={year} month={month} feeds={feeds} />
-    </main>
-  );
+  return <CalendarView year={year} month={month} initialData={data} />;
 }
