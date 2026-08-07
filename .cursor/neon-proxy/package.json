@@ -1,0 +1,10 @@
+{
+  "name": "ff-ivy-neon-local-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local Neon SQL-over-HTTP proxy so @neondatabase/serverless can talk to a local Postgres during Cloud Agent development.",
+  "type": "commonjs",
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}
