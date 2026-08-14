@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local Cloud Agent dev tooling (its own Node/CommonJS project):
+    ".cursor/**",
   ]),
 ]);
 
