@@ -71,10 +71,10 @@ export function FeedBanner({
           <p className="mt-3 text-sm text-slate-300">
             {fedToday
               ? lastFedAt
-                ? `Logged ${new Date(lastFedAt).toLocaleString()} — next feed tomorrow`
+                ? `Logged ${new Date(lastFedAt).toLocaleString("en-GB")} — next feed tomorrow`
                 : "Done for today — next feed available tomorrow"
               : lastFedAt
-                ? `Last feed: ${new Date(lastFedAt).toLocaleString()}`
+                ? `Last feed: ${new Date(lastFedAt).toLocaleString("en-GB")}`
                 : "No feeds logged yet — this will be feed #1"}
           </p>
         </div>
