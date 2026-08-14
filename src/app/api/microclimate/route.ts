@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
-import {
-  isGraphPin,
-  isStatusPin,
-  normalizePin,
-  parseNumericValue,
-} from "@/lib/microclimate";
-import { upsertEnvReading } from "@/lib/queries";
+import { ingestPrimaryReading, isPrimaryPin } from "@/lib/env-ingest";
+import { normalizePin } from "@/lib/microclimate";
+import { timingSafeEqual } from "@/lib/timing-safe";
 
 export const runtime = "nodejs";
 
@@ -18,19 +14,9 @@ type WebhookBody = {
   device_pinValue?: string | number;
   timestamp_iso8601?: string;
   timestamp_unix?: string | number;
-  /** Static shared secret — Microclimate often cannot send headers/query auth */
   webhook_secret?: string;
   secret?: string;
 };
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let out = 0;
-  for (let i = 0; i < a.length; i++) {
-    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return out === 0;
-}
 
 function resolveRecordedAt(body: WebhookBody): Date {
   if (body.timestamp_iso8601) {
@@ -75,7 +61,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const contentType = request.headers.get("content-type") ?? "";
   const rawText = await request.text();
   let body: WebhookBody;
   try {
@@ -83,41 +68,7 @@ export async function POST(request: Request) {
       throw new Error("empty_body");
     }
     body = JSON.parse(rawText) as WebhookBody;
-  } catch (err) {
-    const preview = rawText.slice(0, 240);
-    // #region agent log
-    fetch("http://127.0.0.1:7926/ingest/86f94468-743f-4211-ad1e-a630cc67636d", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "ca9006",
-      },
-      body: JSON.stringify({
-        sessionId: "ca9006",
-        runId: "json-fail",
-        hypothesisId: "InvalidJson",
-        location: "api/microclimate/route.ts:parse",
-        message: "invalid json body",
-        data: {
-          contentType,
-          rawLen: rawText.length,
-          preview,
-          err: err instanceof Error ? err.message : "parse_failed",
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    console.log(
-      "[ff-ivy-debug]",
-      JSON.stringify({
-        hypothesisId: "InvalidJson",
-        contentType,
-        rawLen: rawText.length,
-        preview,
-        err: err instanceof Error ? err.message : "parse_failed",
-      }),
-    );
-    // #endregion
+  } catch {
     // Return 200 so Blynk/Microclimate does not count this toward webhook disable.
     return NextResponse.json({
       ok: true,
@@ -127,7 +78,6 @@ export async function POST(request: Request) {
     });
   }
 
-  const headerNames = [...request.headers.keys()];
   const providedRaw = request.headers.get("x-webhook-secret");
   const providedAlt =
     request.headers.get("X-Webhook-Secret") ??
@@ -141,9 +91,6 @@ export async function POST(request: Request) {
       : typeof body.secret === "string"
         ? body.secret
         : null;
-  const hasAuthorization = headerNames.some(
-    (n) => n.toLowerCase() === "authorization",
-  );
 
   const authSource = providedRaw
     ? "header"
@@ -169,62 +116,13 @@ export async function POST(request: Request) {
     provided.length === expectedTrim.length &&
     timingSafeEqual(provided, expectedTrim);
 
-  // #region agent log
-  fetch("http://127.0.0.1:7926/ingest/86f94468-743f-4211-ad1e-a630cc67636d", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "ca9006",
-    },
-    body: JSON.stringify({
-      sessionId: "ca9006",
-      runId: "post-fix",
-      hypothesisId: "BodySecret",
-      location: "api/microclimate/route.ts:authResult",
-      message: "webhook auth compare",
-      data: {
-        matchedTrim,
-        authSource,
-        hasBodySecret: Boolean(bodySecret),
-        hasAuthorization,
-        queryKeys: [...new URL(request.url).searchParams.keys()],
-        debugCode: !provided
-          ? "missing_secret"
-          : matchedTrim
-            ? "ok"
-            : "secret_mismatch",
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  console.log(
-    "[ff-ivy-debug]",
-    JSON.stringify({
-      hypothesisId: "BodySecret",
-      matchedTrim,
-      authSource,
-      hasBodySecret: Boolean(bodySecret),
-      hasAuthorization,
-      queryKeys: [...new URL(request.url).searchParams.keys()],
-      debugCode: !provided
-        ? "missing_secret"
-        : matchedTrim
-          ? "ok"
-          : "secret_mismatch",
-    }),
-  );
-  // #endregion
-
   if (!matchedTrim) {
     return NextResponse.json(
       {
         error: "Unauthorized",
         debugCode: !provided ? "missing_secret" : "secret_mismatch",
-        queryKeys: [...new URL(request.url).searchParams.keys()],
-        hasAuthorization,
-        hasBodySecret: Boolean(bodySecret),
         hint: !provided
-          ? 'Put "webhook_secret":"YOUR_SECRET" as a plain string inside the Custom JSON body (Microclimate is not sending headers/query auth).'
+          ? 'Put "webhook_secret":"YOUR_SECRET" as a plain string inside the Custom JSON body, or use ?secret= on the URL.'
           : "Secret was sent but did not match. Check the secret value.",
       },
       { status: 401 },
@@ -236,28 +134,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing device_pin" }, { status: 400 });
   }
 
-  if (!isStatusPin(pin)) {
-    return NextResponse.json({ ok: true, ignored: true });
+  if (!isPrimaryPin(pin)) {
+    return NextResponse.json({
+      ok: true,
+      ignored: true,
+      reason: "non_primary_pin",
+    });
   }
 
   const valueRaw = String(body.device_pinValue ?? "").trim();
-  const streamName =
-    String(
-      body.device_dataStreamName || body.device_dataStreamAlias || pin,
-    ).trim() || pin;
-  const valueNum = parseNumericValue(valueRaw);
-  const recordedAt = resolveRecordedAt(body);
-
-  await upsertEnvReading({
+  const result = await ingestPrimaryReading({
     pin,
-    stream_name: streamName,
-    value_raw: valueRaw || "—",
-    value_num: valueNum,
-    recorded_at: recordedAt,
-    device_id: body.device_id ? String(body.device_id) : null,
-    device_name: body.device_name ? String(body.device_name) : null,
-    writeHistory: isGraphPin(pin) && valueNum !== null,
+    valueRaw: valueRaw || "—",
+    recordedAt: resolveRecordedAt(body),
+    deviceId: body.device_id ? String(body.device_id) : null,
+    deviceName: body.device_name ? String(body.device_name) : null,
+    throttle: true,
   });
 
-  return NextResponse.json({ ok: true, authSource });
+  if (!result.ok) {
+    return NextResponse.json({
+      ok: true,
+      ignored: true,
+      reason: result.reason,
+      authSource,
+    });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    authSource,
+    pin: result.pin,
+    action: result.action,
+  });
 }

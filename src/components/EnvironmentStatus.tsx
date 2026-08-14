@@ -47,7 +47,7 @@ export function EnvironmentStatus({ readings }: Props) {
             className="rounded-2xl border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200"
             role="status"
           >
-            Readings look stale (15+ min). Check Wi‑Fi / Blynk webhook.
+            Readings look stale (15+ min). Check Wi‑Fi / Blynk poll.
           </p>
         ) : null}
       </div>

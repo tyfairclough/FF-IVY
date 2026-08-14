@@ -15,26 +15,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/login") ||
     isMicroclimate
   ) {
-    // #region agent log
-    if (isMicroclimate) {
-      fetch("http://127.0.0.1:7926/ingest/86f94468-743f-4211-ad1e-a630cc67636d", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "ca9006",
-        },
-        body: JSON.stringify({
-          sessionId: "ca9006",
-          runId: "pre-fix",
-          hypothesisId: "D",
-          location: "middleware.ts:publicPass",
-          message: "microclimate allowed through middleware",
-          data: { pathname },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-    }
-    // #endregion
     return NextResponse.next();
   }
 
@@ -43,24 +23,6 @@ export async function middleware(request: NextRequest) {
 
   if (!ok) {
     if (pathname.startsWith("/api/")) {
-      // #region agent log
-      fetch("http://127.0.0.1:7926/ingest/86f94468-743f-4211-ad1e-a630cc67636d", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "ca9006",
-        },
-        body: JSON.stringify({
-          sessionId: "ca9006",
-          runId: "pre-fix",
-          hypothesisId: "D",
-          location: "middleware.ts:apiUnauthorized",
-          message: "middleware returned 401 for API",
-          data: { pathname },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       return NextResponse.json(
         { error: "Unauthorized", debugCode: "middleware_session" },
         { status: 401 },

@@ -1,6 +1,12 @@
 export const GRAPH_PINS = ["v0", "v1", "v2"] as const;
 export type GraphPin = (typeof GRAPH_PINS)[number];
 
+/** Primary env pins polled from Blynk / accepted by webhook fallback. */
+export const PRIMARY_PINS = GRAPH_PINS;
+export type PrimaryPin = GraphPin;
+
+export const INGEST_THROTTLE_MS = 60_000;
+
 export const STATUS_PINS = [
   "v0",
   "v1",
