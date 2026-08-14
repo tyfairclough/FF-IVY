@@ -7,7 +7,7 @@ Tablet-first chameleon care diary: Arcadia Insectivore 8-feed cycle, care timers
 - Next.js (App Router) PWA
 - Neon Postgres
 - Shared-password login
-- Blynk Device HTTPS API poll (Microclimate Evo Connected Pro) while the app is open
+- Blynk Device HTTPS API poll (Microclimate Evo Connected Pro) via Vercel Cron
 - Deploy target: Vercel
 
 ## Local setup
@@ -17,6 +17,7 @@ Tablet-first chameleon care diary: Arcadia Insectivore 8-feed cycle, care timers
    - `APP_PASSWORD`
    - `SESSION_SECRET`
    - `BLYNK_SERVER_URL`, `BLYNK_DEVICE_TOKEN` (see below)
+   - `CRON_SECRET`
    - `MICROCLIMATE_WEBHOOK_SECRET` (only if using the optional webhook fallback)
    - `OPENAI_API_KEY` (natural-language voice)
 2. Apply the schemas in [`db/migrations/`](db/migrations/) to your Neon database.
@@ -35,11 +36,11 @@ Open [http://localhost:3000](http://localhost:3000), sign in with `APP_PASSWORD`
 - Care tasks with days-since colour nudges (red at 7+ days)
 - Insect check-in/out; gut-load and clean timers for crickets, locusts, dubia
 - Touch buttons and Chrome Web Speech + OpenAI natural-language voice (multi-intent logging, clarifications, “what does Ivy need”, last-done questions) with undo toasts
-- Microclimate Yellow/Red temperature and Blue humidity status + 24h charts (polled once per minute while the Today screen is open)
+- Microclimate Yellow/Red temperature and Blue humidity status + 24h charts (Blynk polled once per minute via Vercel Cron; UI refreshes from `/api/today` every 60s)
 
 ## Microclimate / Blynk poll (primary)
 
-FF-IVY pulls **only** these pins once per minute while a signed-in user has the Today screen open (`POST /api/microclimate/poll`, session cookie auth):
+Vercel Cron hits `GET /api/microclimate/poll` every minute. FF-IVY pulls **only** these pins:
 
 | Pin | Stream |
 |-----|--------|
@@ -62,12 +63,23 @@ FF-IVY pulls **only** these pins once per minute while a signed-in user has the 
    Treat this like a password. (It is the same value that appeared as `device_authToken` in old webhook payloads.)
 4. Optional: `BLYNK_DEVICE_NAME=Ivy enclosure` for the label stored with readings.
 
-Manual test (while signed in):
+### Cron secret (Vercel)
 
-```bash
-curl -s -b "ff_ivy_session=YOUR_SESSION_COOKIE" \
-  -X POST "https://ff-ivy.vercel.app/api/microclimate/poll"
+Set `CRON_SECRET` in Vercel (Production). Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` automatically.
+
+Manual smoke test — on **Windows PowerShell**, `curl` is an alias for `Invoke-WebRequest` and does not accept `-H`. Use **`curl.exe`**:
+
+```powershell
+curl.exe -s -H "Authorization: Bearer YOUR_CRON_SECRET" "https://ff-ivy.vercel.app/api/microclimate/poll"
 ```
+
+Or with `Invoke-RestMethod`:
+
+```powershell
+Invoke-RestMethod -Uri "https://ff-ivy.vercel.app/api/microclimate/poll" -Headers @{ Authorization = "Bearer YOUR_CRON_SECRET" }
+```
+
+Expected success: JSON like `{ "ok": true, "updated": ["v0","v1","v2"], ... }`.
 
 ### Disable outbound webhooks (important)
 

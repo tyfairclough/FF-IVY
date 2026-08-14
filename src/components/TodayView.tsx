@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { EnvironmentCharts } from "@/components/EnvironmentCharts";
 import { EnvironmentStatus } from "@/components/EnvironmentStatus";
 import { FeedBanner } from "@/components/FeedBanner";
@@ -12,24 +11,6 @@ import type { TodaySnapshot } from "@/lib/queries";
 export function TodayView({ initialData }: { initialData: TodaySnapshot }) {
   const data = usePollingFetch("/api/today", initialData);
   const { nextFeed, tasks, insects, envLatest, envHistory } = data;
-
-  useEffect(() => {
-    function pollBlynkIfVisible() {
-      if (typeof document !== "undefined" && document.hidden) return;
-      void fetch("/api/microclimate/poll", { method: "POST", cache: "no-store" });
-    }
-
-    pollBlynkIfVisible();
-    const intervalId = window.setInterval(pollBlynkIfVisible, 60_000);
-    window.addEventListener("focus", pollBlynkIfVisible);
-    document.addEventListener("visibilitychange", pollBlynkIfVisible);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", pollBlynkIfVisible);
-      document.removeEventListener("visibilitychange", pollBlynkIfVisible);
-    };
-  }, []);
 
   return (
     <main className="space-y-6">

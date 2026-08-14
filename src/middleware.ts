@@ -5,16 +5,16 @@ const PUBLIC_PATHS = ["/login", "/manifest.webmanifest", "/sw.js"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isMicroclimateWebhook = pathname === "/api/microclimate";
-
-  if (
+  const isMicroclimateApi = pathname.startsWith("/api/microclimate");
+  const isPublic =
     PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`)) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||
     pathname === "/favicon.ico" ||
     pathname.startsWith("/api/login") ||
-    isMicroclimateWebhook
-  ) {
+    isMicroclimateApi;
+
+  if (isPublic) {
     return NextResponse.next();
   }
 
