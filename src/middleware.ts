@@ -5,7 +5,7 @@ const PUBLIC_PATHS = ["/login", "/manifest.webmanifest", "/sw.js"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isMicroclimate = pathname.startsWith("/api/microclimate");
+  const isMicroclimateWebhook = pathname === "/api/microclimate";
 
   if (
     PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`)) ||
@@ -13,7 +13,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/icons") ||
     pathname === "/favicon.ico" ||
     pathname.startsWith("/api/login") ||
-    isMicroclimate
+    isMicroclimateWebhook
   ) {
     return NextResponse.next();
   }

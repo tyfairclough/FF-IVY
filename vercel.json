@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/microclimate/poll",
-      "schedule": "* * * * *"
-    }
-  ]
-}

@@ -14,7 +14,7 @@ export type IngestPrimaryInput = {
   recordedAt: Date;
   deviceId?: string | null;
   deviceName?: string | null;
-  /** When false, always write (used by cron poll). Default true for webhook. */
+  /** When false, always write (used by Blynk poll). Default true for webhook. */
   throttle?: boolean;
 };
 
